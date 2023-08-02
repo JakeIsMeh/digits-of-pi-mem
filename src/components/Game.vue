@@ -1,38 +1,37 @@
 <script setup>
+import { storeToRefs } from 'pinia';
 import { ref, computed } from '@vue/reactivity';
 import { defineEmits } from '@vue/runtime-core';
-import { computedEager } from '@vueuse/core'
-import shared_state from '../shared_state';
+import { useSharedState } from '@/stores/shared_state';
 import piString from '@/assets/pi-1million.txt?raw';
 
 defineEmits(['gameOver', 'newHighScore']);
 
-var score = ref(0);
-var pi_slice = computed(() => piString.substring(score.value - 3, score.value + 3).split(''));
-var pi_slice_index = ref([0, 1, 2]);
+const shared_state = storeToRefs(useSharedState());
+
+var pi_slice = computed(() => piString.substring(shared_state.score.value - 3, shared_state.score.value + 3).split(''));
 var pi_slice_length = computed(() => pi_slice.value.length);
-var indexed_pi_slice = computed(() => pi_slice.value.slice(0, pi_slice_length.value > 2 ? pi_slice_length.value - 1 : 2).map((char, index) => {return {char: char, index: pi_slice_index.value.at(index)}}))
+var trimmed_pi_slice = computed(() => pi_slice.value.slice(0, pi_slice_length.value > 2 ? pi_slice_length.value - 1 : 2));
 var last_input = ref("");
 var new_high_score = ref(false);
 
 function handleInput() {
     if (isNumeric(last_input.value.trim())) { // discard non number inputs
         if (last_input.value == pi_slice.value.at(-1)) { increment(); }
-        else { } //game over
+        else { shared_state.game_over.value = true; } //game over
     }
     last_input.value = ""
 }
 
 function increment() {
-    score.value += 1
-    if (pi_slice_length.value > 5) {pi_slice_index.value.shift()};
-    pi_slice_index.value.push(score.value.valueOf()+2);
+    shared_state.score.value += 1
 
     if (new_high_score.value) {
-        shared_state.value.high_score = score.value.valueOf(); // deep copy so we dont die to ref fuckery
+        shared_state.high_score.value = shared_state.score.value.valueOf(); // deep copy so we dont die to ref fuckery
+        shared_state.is_currently_high_score.value = true;
     }
-    else if (score.value > shared_state.value.high_score) { // skip num comparison after new highscore
-        shared_state.value.high_score = score.value.valueOf(); // deep copy so we dont die to ref fuckery
+    else if (shared_state.score.value > shared_state.high_score.value) { // skip num comparison after new highscore
+        shared_state.high_score.value = shared_state.score.value.valueOf(); // deep copy so we dont die to ref fuckery
         new_high_score.value = true;
     }
 }
@@ -45,12 +44,15 @@ function isNumeric(str) {
 </script>
 
 <template>
-    {{ pi_slice }}
-    <TransitionGroup name="list" tag="div">
-        <span v-for="(char, index) in indexed_pi_slice" :key="char.index">{{ char.char }}</span>
-    </TransitionGroup>
-    <button @click="increment">incre</button>
-    <input type="text" inputmode="numeric" v-model="last_input" @input="handleInput" />
+    <div >
+        <h3>score: {{ shared_state.score.value }}</h3>
+        <p v-if="shared_state.debug.value">{{ pi_slice }}</p>
+        <div>
+            <span v-for="char in trimmed_pi_slice">{{ char }}</span>
+        </div>
+        <button v-if="shared_state.debug.value" @click="increment">increment</button>
+        <input type="text" inputmode="numeric" v-model="last_input" @input="handleInput" />
+    </div>
 </template>
 
 <style scoped>
@@ -58,5 +60,4 @@ span {
     font-weight: 500;
     font-size: 4em;
 }
-/* TODO: figure out animations */
 </style>
